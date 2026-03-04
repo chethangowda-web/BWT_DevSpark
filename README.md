@@ -287,7 +287,6 @@ A real system learns from its mistakes.
 
 ---
 
-**Would you like me to create a technical 'Getting Started' section for the code implementation of this demo?**
 
 
 
