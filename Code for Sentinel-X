@@ -1,0 +1,1696 @@
+import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo } from "react";
+
+const THEMES = {
+  cyber: {
+    name: "Cyber",
+    bg: "#050810",
+    bgDeep: "#030508",
+    surface: "rgba(255,255,255,0.032)",
+    surfaceHover: "rgba(255,255,255,0.055)",
+    glass: "rgba(6,14,30,0.72)",
+    border: "rgba(255,255,255,0.075)",
+    borderAccent: "rgba(34,211,238,0.35)",
+    accent: "#22d3ee",
+    accentSoft: "rgba(34,211,238,0.12)",
+    accentGlow: "rgba(34,211,238,0.25)",
+    violet: "#a78bfa",
+    violetSoft: "rgba(167,139,250,0.12)",
+    blue: "#60a5fa",
+    green: "#34d399",
+    amber: "#fbbf24",
+    danger: "#f87171",
+    text: "#f1f5f9",
+    textSub: "#94a3b8",
+    textMuted: "#475569",
+    sidebarBg: "rgba(3,5,10,0.95)",
+    headerBg: "rgba(5,8,16,0.88)",
+    gridLine: "rgba(34,211,238,0.04)",
+  },
+  graphite: {
+    name: "Graphite",
+    bg: "#0a0a0f",
+    bgDeep: "#060609",
+    surface: "rgba(255,255,255,0.04)",
+    surfaceHover: "rgba(255,255,255,0.065)",
+    glass: "rgba(12,12,20,0.80)",
+    border: "rgba(255,255,255,0.08)",
+    borderAccent: "rgba(96,165,250,0.35)",
+    accent: "#60a5fa",
+    accentSoft: "rgba(96,165,250,0.12)",
+    accentGlow: "rgba(96,165,250,0.22)",
+    violet: "#c084fc",
+    violetSoft: "rgba(192,132,252,0.12)",
+    blue: "#818cf8",
+    green: "#4ade80",
+    amber: "#fb923c",
+    danger: "#f87171",
+    text: "#f8fafc",
+    textSub: "#94a3b8",
+    textMuted: "#4b5563",
+    sidebarBg: "rgba(6,6,12,0.96)",
+    headerBg: "rgba(10,10,15,0.90)",
+    gridLine: "rgba(96,165,250,0.04)",
+  },
+  soc: {
+    name: "SOC Light",
+    bg: "#f0f4f8",
+    bgDeep: "#e2e8f0",
+    surface: "rgba(255,255,255,0.85)",
+    surfaceHover: "rgba(255,255,255,0.95)",
+    glass: "rgba(248,250,252,0.90)",
+    border: "rgba(0,0,0,0.08)",
+    borderAccent: "rgba(37,99,235,0.35)",
+    accent: "#2563eb",
+    accentSoft: "rgba(37,99,235,0.08)",
+    accentGlow: "rgba(37,99,235,0.15)",
+    violet: "#7c3aed",
+    violetSoft: "rgba(124,58,237,0.08)",
+    blue: "#0284c7",
+    green: "#059669",
+    amber: "#d97706",
+    danger: "#dc2626",
+    text: "#0f172a",
+    textSub: "#475569",
+    textMuted: "#94a3b8",
+    sidebarBg: "rgba(15,23,42,0.98)",
+    headerBg: "rgba(248,250,252,0.92)",
+    gridLine: "rgba(37,99,235,0.05)",
+  },
+};
+
+const AppContext = createContext(null);
+const useApp = () => useContext(AppContext);
+
+const R = (a, b) => Math.random() * (b - a) + a;
+const RI = (a, b) => Math.floor(R(a, b));
+const pick = a => a[RI(0, a.length)];
+
+const MERCHANTS = ["Swiggy","Amazon.in","Zomato","Flipkart","Paytm Mall","BookMyShow","Ola","MakeMyTrip","Netflix","Steam","Unknown Vendor","Offshore TXN","Crypto Exchange","Dark Web Ref"];
+const CITIES = ["Bangalore","Mumbai","Delhi","Chennai","Hyderabad","Pune","Kolkata","London","Dubai","Singapore","Moscow","Lagos"];
+const METHODS = ["UPI","IMPS","NEFT","RTGS","Debit Card","Credit Card"];
+const USERS = ["USR-4821","USR-2294","USR-5507","USR-3312","USR-9901","USR-6673","USR-1148","USR-7734","USR-0092"];
+const ALL_FLAGS = ["GEO_VELOCITY","VPN_DETECTED","DEVICE_MISMATCH","VELOCITY_BREACH","FOREIGN_ORIGIN","UNUSUAL_HOUR","NEW_MERCHANT","SALAMI_PATTERN","IP_BLACKLIST","BIOMETRIC_FAIL","SESSION_HIJACK","CARD_TESTING"];
+
+const fmt = n => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+
+function genTx(id) {
+  const score = parseFloat(R(0, 1).toFixed(4));
+  const risky = score > 0.5;
+  const amount = risky ? RI(8000, 180000) : RI(50, 15000);
+  const city = score > 0.82 ? pick(["London","Dubai","Singapore","Moscow","Lagos"]) : pick(["Bangalore","Mumbai","Delhi","Chennai","Hyderabad"]);
+  const status = score < 0.5 ? "PASSED" : score < 0.8 ? "STEP_UP" : score < 0.9 ? "FLAGGED" : "KILLED";
+  const numFlags = score > 0.9 ? RI(3, 6) : score > 0.7 ? RI(1, 3) : score > 0.5 ? RI(0, 2) : 0;
+  const flags = score < 0.5 ? [] : ALL_FLAGS.slice().sort(() => R(-1,1)).slice(0, numFlags);
+  const l1 = RI(6, 22), l2 = RI(38, 98), l3 = RI(12, 55);
+  return {
+    id: id || `TX-${Date.now()}-${RI(1000,9999)}`,
+    user: pick(USERS),
+    merchant: score > 0.82 ? pick(["Unknown Vendor","Offshore TXN","Crypto Exchange","Dark Web Ref"]) : pick(MERCHANTS),
+    amount, method: pick(METHODS), city, score, status,
+    time: new Date().toLocaleTimeString("en-US", { hour12: false }),
+    timestamp: Date.now(),
+    flags, l1, l2, l3,
+    total: l1 + l2 + l3,
+  };
+}
+
+function GlobalStyles({ t }) {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body { background: ${t.bg}; color: ${t.text}; font-family: 'Outfit', sans-serif; overflow: hidden; }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 2px; }
+      ::-webkit-scrollbar-thumb:hover { background: ${t.borderAccent}; }
+      .mono { font-family: 'JetBrains Mono', monospace; }
+
+      @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+      @keyframes slideIn  { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+      @keyframes slideRight{ from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+      @keyframes scaleIn  { from{opacity:0;transform:scale(0.94)} to{opacity:1;transform:scale(1)} }
+      @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.5} }
+      @keyframes blink    { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+      @keyframes spin     { to{transform:rotate(360deg)} }
+      @keyframes shimmer  { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+      @keyframes glow-pulse { 0%,100%{box-shadow:0 0 8px ${t.accentGlow}} 50%{box-shadow:0 0 20px ${t.accent}55, 0 0 40px ${t.accentGlow}} }
+      @keyframes scanline { 0%{top:-2px} 100%{top:100%} }
+      @keyframes viewIn   { from{opacity:0;transform:translateY(10px) scale(0.99)} to{opacity:1;transform:translateY(0) scale(1)} }
+      @keyframes countUp  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+      @keyframes radar-sweep { to{transform:rotate(360deg)} }
+      @keyframes flow-down { 0%{opacity:0;transform:translateY(-8px)} 50%{opacity:1} 100%{opacity:0;transform:translateY(8px)} }
+      @keyframes bar-fill { from{width:0} to{width:var(--w)} }
+      @keyframes ripple-out { 0%{transform:scale(0.5);opacity:0.8} 100%{transform:scale(2.5);opacity:0} }
+
+      .view-enter { animation: viewIn 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+      .card-enter { animation: fadeUp 0.28s ease both; }
+      .slide-in   { animation: slideIn 0.25s ease both; }
+
+      .module-card {
+        position:relative; cursor:pointer; border-radius:12px; overflow:hidden;
+        border:1px solid ${t.border}; background:${t.surface};
+        transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+        backdrop-filter: blur(12px);
+      }
+      .module-card:hover {
+        transform: translateY(-3px) scale(1.005);
+        border-color: ${t.borderAccent};
+        background: ${t.surfaceHover};
+        box-shadow: 0 12px 40px ${t.accentGlow}, 0 0 0 1px ${t.borderAccent};
+      }
+      .module-card::before {
+        content:''; position:absolute; inset:0; border-radius:12px;
+        background: linear-gradient(135deg, ${t.accentSoft} 0%, transparent 60%);
+        opacity:0; transition:opacity 0.22s ease; pointer-events:none;
+      }
+      .module-card:hover::before { opacity:1; }
+
+      .nav-item {
+        display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px;
+        cursor:pointer; transition:all 0.18s ease; border:1px solid transparent;
+        font-size:13px; font-weight:500; color:${t.textMuted}; white-space:nowrap;
+        text-decoration:none;
+      }
+      .nav-item:hover { background:${t.surfaceHover}; color:${t.textSub}; border-color:${t.border}; }
+      .nav-item.active { background:${t.accentSoft}; color:${t.accent}; border-color:${t.borderAccent}; }
+
+      .pill {
+        display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px;
+        font-size:11px; font-weight:500; letter-spacing:0.02em;
+      }
+      .pill.passed { background:rgba(52,211,153,0.12); color:#34d399; border:1px solid rgba(52,211,153,0.25); }
+      .pill.step_up { background:rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.25); }
+      .pill.flagged { background:rgba(251,191,36,0.12); color:#fb923c; border:1px solid rgba(251,191,36,0.25); }
+      .pill.killed  { background:rgba(248,113,113,0.12); color:#f87171; border:1px solid rgba(248,113,113,0.25); }
+
+      .glass-panel {
+        background: ${t.glass}; backdrop-filter:blur(20px); border:1px solid ${t.border};
+        border-radius:14px;
+      }
+      .loading-skeleton {
+        background: linear-gradient(90deg, ${t.surface} 25%, ${t.surfaceHover} 50%, ${t.surface} 75%);
+        background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius:6px;
+      }
+      .glow-accent { animation: glow-pulse 3s ease-in-out infinite; }
+      .btn-base {
+        display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px;
+        font-family:'Outfit',sans-serif; font-size:13px; font-weight:500; cursor:pointer;
+        transition:all 0.18s ease; border:1px solid transparent;
+      }
+      .btn-accent { background:${t.accentSoft}; color:${t.accent}; border-color:${t.borderAccent}; }
+      .btn-accent:hover { background:${t.accent}; color:${t.bg}; }
+      .btn-ghost { background:transparent; color:${t.textSub}; border-color:${t.border}; }
+      .btn-ghost:hover { background:${t.surface}; color:${t.text}; }
+      .btn-danger { background:rgba(248,113,113,0.1); color:#f87171; border-color:rgba(248,113,113,0.3); }
+      .btn-danger:hover { background:#f87171; color:#fff; }
+      input, select {
+        background:${t.surface}; border:1px solid ${t.border}; border-radius:8px;
+        color:${t.text}; font-family:'Outfit',sans-serif; font-size:13px; padding:8px 12px;
+        outline:none; transition:border-color 0.18s;
+      }
+      input:focus, select:focus { border-color:${t.accent}; box-shadow:0 0 0 3px ${t.accentGlow}; }
+      select option { background:${t.bg}; }
+      table { width:100%; border-collapse:collapse; }
+      th { padding:10px 14px; text-align:left; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:${t.textMuted}; border-bottom:1px solid ${t.border}; white-space:nowrap; }
+      td { padding:11px 14px; font-size:13px; border-bottom:1px solid ${t.border}44; white-space:nowrap; }
+      tr:last-child td { border-bottom:none; }
+      tr.data-row { transition:background 0.15s; cursor:pointer; }
+      tr.data-row:hover td { background:${t.surfaceHover}; }
+      .scrollable { overflow-y:auto; }
+      .tag {
+        display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px;
+        font-size:10px; font-weight:500; font-family:'JetBrains Mono',monospace;
+        background:${t.surface}; border:1px solid ${t.border}; color:${t.textSub};
+        letter-spacing:0.04em;
+      }
+    `}</style>
+  );
+}
+
+function CountUp({ target, decimals = 0, prefix = "", suffix = "", duration = 1200 }) {
+  const [val, setVal] = useState(0);
+  const start = useRef(null);
+  const frame = useRef(null);
+  useEffect(() => {
+    start.current = null;
+    const tick = (ts) => {
+      if (!start.current) start.current = ts;
+      const p = Math.min((ts - start.current) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setVal(target * ease);
+      if (p < 1) frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
+  }, [target, duration]);
+  return <span style={{ animation: "countUp 0.3s ease both" }}>{prefix}{val.toFixed(decimals)}{suffix}</span>;
+}
+
+function ScoreBar({ score, width = 100 }) {
+  const { t } = useApp();
+  const color = score < 0.5 ? t.green : score < 0.8 ? t.amber : t.danger;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ width, height: 5, background: t.border, borderRadius: 3, overflow: "hidden", flexShrink: 0 }}>
+        <div style={{
+          height: "100%", width: `${score * 100}%`,
+          background: `linear-gradient(90deg, ${color}88, ${color})`,
+          borderRadius: 3, boxShadow: `0 0 6px ${color}66`,
+          transition: "width 0.4s ease",
+        }} />
+      </div>
+      <span className="mono" style={{ fontSize: 11, color, minWidth: 36 }}>{score.toFixed(3)}</span>
+    </div>
+  );
+}
+
+function StatusPill({ status }) {
+  const labels = { PASSED: "Passed", STEP_UP: "Step-Up", FLAGGED: "Flagged", KILLED: "Killed" };
+  const icons = { PASSED: "✓", STEP_UP: "🔐", FLAGGED: "⚠", KILLED: "⛔" };
+  const cls = status.toLowerCase();
+  return <span className={`pill ${cls}`}>{icons[status]} {labels[status]}</span>;
+}
+
+function Skeleton({ w = "100%", h = 16, style = {} }) {
+  return <div className="loading-skeleton" style={{ width: w, height: h, ...style }} />;
+}
+
+function BackButton({ onBack, label = "Dashboard" }) {
+  const { t } = useApp();
+  return (
+    <button className="btn-base btn-ghost" onClick={onBack} style={{ fontSize: 13 }}>
+      <span style={{ fontSize: 16 }}>←</span> {label}
+    </button>
+  );
+}
+
+function SectionHeader({ icon, title, subtitle, badge, onBack }) {
+  const { t } = useApp();
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {onBack && <BackButton onBack={onBack} />}
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: t.accentSoft, border: `1px solid ${t.borderAccent}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0,
+        }}>{icon}</div>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: t.text, letterSpacing: "-0.01em" }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 13, color: t.textSub, marginTop: 2 }}>{subtitle}</div>}
+        </div>
+        {badge && (
+          <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+            background: t.accentSoft, color: t.accent, border: `1px solid ${t.borderAccent}` }}>{badge}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetricTile({ label, value, sub, color, icon, loading }) {
+  const { t } = useApp();
+  const c = color || t.accent;
+  return (
+    <div className="glass-panel" style={{ padding: "18px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted }}>{label}</span>
+        {icon && <span style={{ fontSize: 16, opacity: 0.7 }}>{icon}</span>}
+      </div>
+      {loading ? <Skeleton h={28} /> : (
+        <div style={{ fontSize: 26, fontWeight: 700, color: c, letterSpacing: "-0.02em", lineHeight: 1 }}>{value}</div>
+      )}
+      {sub && <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ThreatRadar({ transactions, size = 200 }) {
+  const { t } = useApp();
+  const canvasRef = useRef(null);
+  const frameRef = useRef(null);
+  const angleRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = size, H = size, cx = W/2, cy = H/2, r = W/2 - 12;
+
+    const dots = transactions.slice(0, 30).map(() => ({
+      angle: Math.random() * Math.PI * 2,
+      dist: Math.random() * r * 0.88 + r * 0.06,
+      score: transactions[RI(0, transactions.length)]?.score || Math.random(),
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      [0.25, 0.5, 0.75, 1].forEach(scale => {
+        ctx.beginPath(); ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+        ctx.strokeStyle = t.border; ctx.lineWidth = 1; ctx.stroke();
+      });
+      ctx.strokeStyle = t.border; ctx.lineWidth = 1;
+      [[cx,0,cx,H],[0,cy,W,cy]].forEach(([x1,y1,x2,y2]) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      });
+      angleRef.current += 0.02;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(angleRef.current);
+      const g = ctx.createLinearGradient(0, 0, r, 0);
+      g.addColorStop(0, "transparent");
+      g.addColorStop(0.7, t.accent + "18");
+      g.addColorStop(1, t.accent + "44");
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r,-0.5,0); ctx.closePath();
+      ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(r,0);
+      ctx.strokeStyle = t.accent + "cc"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.restore();
+      dots.forEach(d => {
+        const x = cx + Math.cos(d.angle) * d.dist, y = cy + Math.sin(d.angle) * d.dist;
+        const color = d.score > 0.9 ? t.danger : d.score > 0.5 ? t.amber : t.green;
+        const sz = d.score > 0.85 ? 4.5 : d.score > 0.5 ? 3 : 2;
+        ctx.beginPath(); ctx.arc(x, y, sz, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, sz + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = color + "55"; ctx.lineWidth = 1; ctx.stroke();
+      });
+      ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+      ctx.fillStyle = t.accent; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.strokeStyle = t.accent + "44"; ctx.lineWidth = 1; ctx.stroke();
+      frameRef.current = requestAnimationFrame(draw);
+    }
+    draw();
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [transactions.length, t.accent, size]);
+
+  return <canvas ref={canvasRef} width={size} height={size} style={{ display: "block" }} />;
+}
+
+function LiveStreamView({ onBack }) {
+  const { t, transactions, simRunning, setSimRunning } = useApp();
+  const [filter, setFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const filtered = transactions.filter(tx => {
+    const matchStatus = filter === "ALL" || tx.status === filter;
+    const q = search.toLowerCase();
+    const matchSearch = !q || tx.id.toLowerCase().includes(q) || tx.merchant.toLowerCase().includes(q) || tx.user.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+
+  return (
+    <div className="view-enter" style={{ height: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="⚡" title="Live Transaction Stream" subtitle={`${transactions.length} events captured this session`} onBack={onBack} badge="LIVE" />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input placeholder="Search ID, merchant, user…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 220 }} />
+        {["ALL","PASSED","STEP_UP","FLAGGED","KILLED"].map(s => (
+          <button key={s} className={`btn-base ${filter === s ? "btn-accent" : "btn-ghost"}`} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setFilter(s)}>
+            {s === "STEP_UP" ? "Step-Up" : s.charAt(0) + s.slice(1).toLowerCase()}
+          </button>
+        ))}
+        <button className={`btn-base ${simRunning ? "btn-danger" : "btn-accent"}`} style={{ marginLeft: "auto", padding: "6px 14px", fontSize: 12 }} onClick={() => setSimRunning(r => !r)}>
+          {simRunning ? "⏸ Pause" : "▶ Resume"} Sim
+        </button>
+      </div>
+      <div className="glass-panel scrollable" style={{ flex: 1, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto", height: "100%", overflowY: "auto" }}>
+          <table>
+            <thead style={{ position: "sticky", top: 0, background: t.glass, backdropFilter: "blur(12px)", zIndex: 2 }}>
+              <tr><th>Time</th><th>Transaction ID</th><th>User</th><th>Merchant</th><th>Amount</th><th>Method</th><th>City</th><th>Risk Score</th><th>Status</th><th>Flags</th></tr>
+            </thead>
+            <tbody>
+              {filtered.slice(0, 50).map((tx, i) => (
+                <tr key={tx.id} className="data-row" onClick={() => setSelected(tx === selected ? null : tx)}
+                  style={{ background: selected?.id === tx.id ? t.accentSoft : "transparent", animation: `fadeUp 0.2s ${Math.min(i, 10) * 0.02}s ease both` }}>
+                  <td className="mono" style={{ color: t.textMuted, fontSize: 11 }}>{tx.time}</td>
+                  <td className="mono" style={{ color: t.accent, fontSize: 11 }}>{tx.id.slice(-14)}</td>
+                  <td style={{ color: t.textSub }}>{tx.user}</td>
+                  <td style={{ color: t.text }}>{tx.merchant}</td>
+                  <td className="mono" style={{ color: tx.amount > 20000 ? t.amber : t.textSub }}>{fmt(tx.amount)}</td>
+                  <td><span className="tag">{tx.method}</span></td>
+                  <td style={{ color: ["London","Dubai","Singapore","Moscow","Lagos"].includes(tx.city) ? t.amber : t.textSub }}>{tx.city}</td>
+                  <td><ScoreBar score={tx.score} width={90} /></td>
+                  <td><StatusPill status={tx.status} /></td>
+                  <td style={{ color: t.textMuted, fontSize: 11 }}>{tx.flags.length > 0 ? tx.flags.slice(0,2).join(", ") + (tx.flags.length > 2 ? ` +${tx.flags.length-2}` : "") : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {selected && (
+        <div className="glass-panel card-enter" style={{ padding: 16, borderColor: t.borderAccent }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 4 }}>SELECTED TRANSACTION</div>
+              <div className="mono" style={{ fontSize: 13, color: t.accent }}>{selected.id}</div>
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {[["User", selected.user], ["Amount", fmt(selected.amount)], ["Merchant", selected.merchant], ["City", selected.city], ["Method", selected.method], ["Total Latency", `${selected.total}ms`]].map(([k,v]) => (
+                <div key={k}><div style={{ fontSize: 10, color: t.textMuted }}>{k}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{v}</div></div>
+              ))}
+              {selected.flags.length > 0 && (
+                <div><div style={{ fontSize: 10, color: t.textMuted }}>Flags</div>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 3 }}>
+                    {selected.flags.map(f => <span key={f} className="tag" style={{ color: t.amber, borderColor: t.amber + "44" }}>{f}</span>)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <StatusPill status={selected.status} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThreatAnalysisView({ onBack }) {
+  const { t, transactions } = useApp();
+  const killed = transactions.filter(x => x.status === "KILLED");
+  const risky = transactions.filter(x => x.score > 0.5);
+  const cityMap = {};
+  transactions.forEach(tx => { cityMap[tx.city] = (cityMap[tx.city] || 0) + 1; });
+  const topCities = Object.entries(cityMap).sort((a,b) => b[1]-a[1]).slice(0,8);
+  const scoreHistory = transactions.slice(0, 30).map(tx => tx.score).reverse();
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="🎯" title="Threat Analysis" subtitle="Real-time anomaly detection & threat intelligence" onBack={onBack} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+        <MetricTile label="Threat Score" value={<CountUp target={risky.length > 0 ? risky.reduce((a,x)=>a+x.score,0)/risky.length : 0} decimals={3} />} color={t.danger} icon="🔥" />
+        <MetricTile label="Active Threats" value={<CountUp target={killed.length} />} color={t.danger} icon="⛔" />
+        <MetricTile label="High-Risk TXNs" value={<CountUp target={risky.length} />} color={t.amber} icon="⚠️" />
+        <MetricTile label="Foreign Origins" value={<CountUp target={transactions.filter(x=>["London","Dubai","Singapore","Moscow","Lagos"].includes(x.city)).length} />} color={t.violet} icon="🌍" />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="glass-panel" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Live Threat Radar</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <ThreatRadar transactions={transactions} size={200} />
+            <div style={{ flex: 1 }}>
+              {[{ label: "Critical (≥0.9)", color: t.danger, count: transactions.filter(x=>x.score>=0.9).length },
+                { label: "High (0.7–0.9)", color: t.amber, count: transactions.filter(x=>x.score>=0.7&&x.score<0.9).length },
+                { label: "Medium (0.5–0.7)", color: t.amber+"88", count: transactions.filter(x=>x.score>=0.5&&x.score<0.7).length },
+                { label: "Low (<0.5)", color: t.green, count: transactions.filter(x=>x.score<0.5).length }].map(item => (
+                <div key={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${t.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, boxShadow: `0 0 6px ${item.color}` }} />
+                    <span style={{ fontSize: 12, color: t.textSub }}>{item.label}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: item.color }}>{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="glass-panel" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Risk Score History</div>
+          <div style={{ height: 180, position: "relative" }}>
+            {scoreHistory.length > 1 ? (() => {
+              const H = 160;
+              return (
+                <svg width="100%" height={H} preserveAspectRatio="none" style={{ overflow: "visible" }}>
+                  <defs>
+                    <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={t.accent} stopOpacity="0.3" />
+                      <stop offset="100%" stopColor={t.accent} stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  {[0.25, 0.5, 0.75].map(y => (
+                    <line key={y} x1="0" y1={`${y*100}%`} x2="100%" y2={`${y*100}%`} stroke={t.border} strokeWidth="1" />
+                  ))}
+                  <polyline points={scoreHistory.map((v, i) => `${(i/(scoreHistory.length-1))*100}%,${(1-v)*H}`).join(" ")}
+                    fill="none" stroke={t.accent} strokeWidth="2" strokeLinejoin="round" />
+                  <polygon points={`0,${H} ${scoreHistory.map((v, i) => `${(i/(scoreHistory.length-1))*100}%,${(1-v)*H}`).join(" ")} 100%,${H}`}
+                    fill="url(#sg)" />
+                  {scoreHistory.map((v, i) => v > 0.8 ? (
+                    <circle key={i} cx={`${(i/(scoreHistory.length-1))*100}%`} cy={(1-v)*H} r="3" fill={v > 0.9 ? t.danger : t.amber} />
+                  ) : null)}
+                </svg>
+              );
+            })() : <div style={{ color: t.textMuted, fontSize: 13 }}>Collecting data…</div>}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+              <span style={{ fontSize: 10, color: t.textMuted }}>oldest</span>
+              <span style={{ fontSize: 10, color: t.textMuted }}>latest →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="glass-panel" style={{ padding: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Origin Distribution</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }}>
+          {topCities.map(([city, count]) => {
+            const pct = (count / transactions.length) * 100;
+            const foreign = ["London","Dubai","Singapore","Moscow","Lagos"].includes(city);
+            return (
+              <div key={city} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <span style={{ color: foreign ? t.amber : t.text }}>{city} {foreign && "⚠"}</span>
+                  <span className="mono" style={{ color: t.textMuted }}>{count}</span>
+                </div>
+                <div style={{ height: 4, background: t.border, borderRadius: 2 }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: foreign ? t.amber : t.accent, borderRadius: 2, transition: "width 0.6s ease" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BiometricsView({ onBack }) {
+  const { t, transactions } = useApp();
+  const latest = transactions[0];
+  const [tab, setTab] = useState("signals");
+
+  const signals = [
+    { key: "TYPING_RHYTHM", label: "Typing Rhythm", icon: "⌨️", desc: "Keystroke dynamics profiling", ok: latest ? latest.score < 0.6 : true, val: latest ? (latest.score < 0.6 ? "Nominal" : "Anomalous") : "—" },
+    { key: "GEO_VELOCITY", label: "Geo-Velocity", icon: "📍", desc: "Physical impossibility check", ok: latest ? !latest.flags.includes("GEO_VELOCITY") : true, val: latest?.city || "—" },
+    { key: "DEVICE_FP", label: "Device Fingerprint", icon: "📱", desc: "Browser + hardware hash", ok: latest ? !latest.flags.includes("DEVICE_MISMATCH") : true, val: latest?.flags.includes("DEVICE_MISMATCH") ? "MISMATCH" : "Trusted" },
+    { key: "VPN", label: "VPN / Proxy", icon: "🕵️", desc: "Network anonymity detection", ok: latest ? !latest.flags.includes("VPN_DETECTED") : true, val: latest?.flags.includes("VPN_DETECTED") ? "DETECTED" : "Clean" },
+    { key: "SCROLL", label: "Scroll Behavior", icon: "🖱", desc: "Micro-interaction analysis", ok: latest ? latest.score < 0.7 : true, val: latest ? (latest.score < 0.7 ? "Normal" : "Erratic") : "—" },
+    { key: "SALAMI", label: "Salami Detection", icon: "🔪", desc: "Velocity pattern analysis", ok: latest ? !latest.flags.includes("SALAMI_PATTERN") : true, val: latest?.flags.includes("SALAMI_PATTERN") ? "BREACH" : "Clear" },
+    { key: "SESSION", label: "Session Continuity", icon: "🔗", desc: "Tab/window identity check", ok: latest ? !latest.flags.includes("SESSION_HIJACK") : true, val: latest?.flags.includes("SESSION_HIJACK") ? "HIJACKED" : "Intact" },
+    { key: "BIOMETRIC", label: "Biometric Match", icon: "🫆", desc: "Passive ID verification", ok: latest ? !latest.flags.includes("BIOMETRIC_FAIL") : true, val: latest?.flags.includes("BIOMETRIC_FAIL") ? "FAILED" : "Verified" },
+  ];
+
+  const anomalyRate = transactions.length ? ((transactions.filter(x => x.flags.length > 0).length / transactions.length) * 100).toFixed(1) : 0;
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="🔬" title="Behavioral Biometrics" subtitle="Passive behavioral identity profiling system" onBack={onBack} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+        <MetricTile label="Anomaly Rate" value={<>{anomalyRate}<span style={{ fontSize: 16 }}>%</span></>} color={parseFloat(anomalyRate) > 30 ? t.danger : t.amber} icon="📊" />
+        <MetricTile label="Biometric Fails" value={<CountUp target={transactions.filter(x => x.flags.includes("BIOMETRIC_FAIL")).length} />} color={t.danger} icon="🫆" />
+        <MetricTile label="VPN Detected" value={<CountUp target={transactions.filter(x => x.flags.includes("VPN_DETECTED")).length} />} color={t.amber} icon="🕵️" />
+        <MetricTile label="Device Mismatches" value={<CountUp target={transactions.filter(x => x.flags.includes("DEVICE_MISMATCH")).length} />} color={t.violet} icon="📱" />
+      </div>
+      <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${t.border}`, marginBottom: 4 }}>
+        {["signals","analysis"].map(tab_name => (
+          <button key={tab_name} onClick={() => setTab(tab_name)}
+            style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: `2px solid ${tab === tab_name ? t.accent : "transparent"}`,
+              color: tab === tab_name ? t.accent : t.textMuted, fontFamily: "Outfit,sans-serif", fontSize: 13, cursor: "pointer", fontWeight: 500, transition: "all 0.2s" }}>
+            {tab_name.charAt(0).toUpperCase() + tab_name.slice(1)}
+          </button>
+        ))}
+      </div>
+      {tab === "signals" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
+          {signals.map((s, i) => (
+            <div key={s.key} className="glass-panel card-enter" style={{ padding: 16, borderColor: s.ok ? t.border : s.key === "VPN" || s.key === "DEVICE_FP" ? t.danger + "44" : t.amber + "44", animationDelay: `${i * 0.04}s` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>{s.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>{s.desc}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.ok ? t.green : t.danger, boxShadow: `0 0 6px ${s.ok ? t.green : t.danger}` }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: s.ok ? t.green : t.danger }}>{s.val}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "analysis" && (
+        <div className="glass-panel" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Flag Frequency Analysis</div>
+          {ALL_FLAGS.map(flag => {
+            const count = transactions.filter(x => x.flags.includes(flag)).length;
+            const pct = transactions.length ? (count / transactions.length) * 100 : 0;
+            return (
+              <div key={flag} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span className="mono" style={{ fontSize: 11, color: count > 0 ? t.amber : t.textMuted }}>{flag}</span>
+                  <span style={{ fontSize: 11, color: t.textMuted }}>{count} occurrences ({pct.toFixed(1)}%)</span>
+                </div>
+                <div style={{ height: 5, background: t.border, borderRadius: 3 }}>
+                  <div style={{ height: "100%", width: `${pct}%`, borderRadius: 3,
+                    background: pct > 20 ? t.danger : pct > 10 ? t.amber : t.green, transition: "width 0.7s ease" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PipelineView({ onBack }) {
+  const { t, transactions } = useApp();
+  const latest = transactions[0];
+  const [activeLayer, setActiveLayer] = useState(null);
+
+  const layers = [
+    {
+      num: "01", id: "ingestion", title: "Ingestion Gate", tech: "Java Multithreaded Engine", icon: "⚙️", color: t.accent,
+      desc: "High-throughput signal ingestion layer handling 1,000+ TPS with zero degradation. Acts as the traffic cop — receives, validates, and queues every transaction signal before it reaches the intelligence layer.",
+      stats: [["Throughput", "1,000+ TPS"], ["Latency", `${latest?.l1 || 14}ms`], ["Queue Depth", "< 50ms burst"], ["Redundancy", "Active-Active"]],
+      features: ["Thread Pool: 256 workers", "Zero-copy buffer design", "Peak-time circuit breaker", "Back-pressure handling"],
+    },
+    {
+      num: "02", id: "intelligence", title: "Intelligence Brain", tech: "Python + Isolation Forest ML", icon: "🧠", color: t.violet,
+      desc: "Machine learning core using Isolation Forest anomaly detection. Unlike rule-based systems, it hunts statistical outliers rather than known patterns — detecting zero-day fraud schemes without prior examples.",
+      stats: [["Score Range", "0.000 → 1.000"], ["Avg Latency", `${latest?.l2 || 72}ms`], ["Model", "Isolation Forest"], ["Features", "47 behavioral"]],
+      features: ["Unsupervised anomaly detection", "No labeled data required", "Dynamic threshold adaptation", "Explainable feature weights"],
+    },
+    {
+      num: "03", id: "behavioral", title: "Behavioral Fingerprint", tech: "Passive Biometrics Engine", icon: "🔍", color: t.amber,
+      desc: "Identity verification through passive behavioral profiling. Every tap, scroll, keystroke rhythm and geo-location is continuously validated against the user's established behavioral baseline.",
+      stats: [["Signals", "12 passive channels"], ["Latency", `${latest?.l3 || 38}ms`], ["Baseline", "Rolling 30-day"], ["Accuracy", "99.7%"]],
+      features: ["Keystroke dynamics", "Geo-velocity impossibility", "Device hash tracking", "Session continuity check"],
+    },
+  ];
+
+  const totalMs = latest ? latest.total : (14 + 72 + 38);
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="🏗️" title="Three-Layer Pipeline" subtitle="Sentinel-X defense architecture visualization" onBack={onBack} />
+      <div className="glass-panel" style={{ padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Decision Budget: <span style={{ color: totalMs < 300 ? t.green : t.danger }}>{totalMs}ms</span> / 300ms</span>
+          <span style={{ fontSize: 12, color: totalMs < 300 ? t.green : t.danger }}>{totalMs < 300 ? "✓ Under budget" : "⚠ Over budget"}</span>
+        </div>
+        <div style={{ height: 8, background: t.border, borderRadius: 4, position: "relative" }}>
+          <div style={{ position: "absolute", left: `${(300/400)*100}%`, top: -4, bottom: -4, width: 1, background: t.danger + "88" }} />
+          {[{ pct: latest?.l1/totalMs, color: t.accent }, { pct: latest?.l2/totalMs, color: t.violet }, { pct: latest?.l3/totalMs, color: t.amber }].reduce((acc, seg, i) => {
+            const left = acc.left;
+            const w = (seg.pct || [14,72,38][i]/totalMs) * 100;
+            acc.els.push(<div key={i} style={{ position: "absolute", left: `${left}%`, height: "100%", width: `${w}%`, background: seg.color, borderRadius: i === 0 ? "4px 0 0 4px" : i === 2 ? "0 4px 4px 0" : 0 }} />);
+            acc.left += w;
+            return acc;
+          }, { els: [], left: 0 }).els}
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
+          {[["L1 Ingestion", t.accent], ["L2 ML Score", t.violet], ["L3 Biometric", t.amber]].map(([lbl, color]) => (
+            <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+              <span style={{ fontSize: 11, color: t.textMuted }}>{lbl}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {layers.map((layer, i) => (
+          <div key={layer.id}>
+            <div className="glass-panel" style={{
+              padding: 20, cursor: "pointer", borderColor: activeLayer === layer.id ? layer.color + "55" : t.border,
+              background: activeLayer === layer.id ? layer.color + "08" : t.surface,
+              transition: "all 0.22s ease", animation: `fadeUp 0.3s ${i * 0.1}s ease both`,
+            }} onClick={() => setActiveLayer(activeLayer === layer.id ? null : layer.id)}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: layer.color + "18", border: `1px solid ${layer.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{layer.icon}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: layer.color, letterSpacing: "0.08em" }}>LAYER {layer.num}</span>
+                    <span style={{ width: 1, height: 12, background: t.border }} />
+                    <span style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{layer.title}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: t.textMuted }}>{layer.tech}</div>
+                </div>
+                <div style={{ display: "flex", gap: 20 }}>
+                  {layer.stats.slice(0,2).map(([k,v]) => (
+                    <div key={k} style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 10, color: t.textMuted }}>{k}</div>
+                      <div className="mono" style={{ fontSize: 13, color: layer.color, fontWeight: 600 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <span style={{ color: t.textMuted, fontSize: 18, marginLeft: 8, transition: "transform 0.2s", transform: activeLayer === layer.id ? "rotate(180deg)" : "none" }}>⌄</span>
+              </div>
+            </div>
+            {activeLayer === layer.id && (
+              <div className="card-enter" style={{ background: layer.color + "06", border: `1px solid ${layer.color}33`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: 20 }}>
+                <p style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7, marginBottom: 16 }}>{layer.desc}</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.06em", marginBottom: 10 }}>PERFORMANCE METRICS</div>
+                    {layer.stats.map(([k,v]) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}` }}>
+                        <span style={{ fontSize: 12, color: t.textSub }}>{k}</span>
+                        <span className="mono" style={{ fontSize: 12, color: layer.color }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.06em", marginBottom: 10 }}>CAPABILITIES</div>
+                    {layer.features.map(f => (
+                      <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+                        <span style={{ color: layer.color, fontSize: 12 }}>→</span>
+                        <span style={{ fontSize: 12, color: t.textSub }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {i < layers.length - 1 && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  {[0,1,2].map(j => <div key={j} style={{ width: 1, height: 6, background: `linear-gradient(${layers[i].color}, ${layers[i+1].color})`, opacity: 0.4 + j*0.2 }} />)}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="glass-panel" style={{ padding: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Decision Routing Matrix</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+          {[
+            { range: "0.00–0.49", label: "PASSED", action: "Approved instantly", color: t.green, icon: "✓" },
+            { range: "0.50–0.79", label: "STEP-UP", action: "Face ID / OTP", color: t.amber, icon: "🔐" },
+            { range: "0.80–0.89", label: "FLAGGED", action: "Review + notify", color: t.amber, icon: "⚠" },
+            { range: "0.90–1.00", label: "KILLED", action: "Kill-Switch fired", color: t.danger, icon: "⛔" },
+          ].map(row => (
+            <div key={row.label} style={{ padding: 14, borderRadius: 10, background: row.color + "0a", border: `1px solid ${row.color}33`, textAlign: "center" }}>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>{row.icon}</div>
+              <div className="mono" style={{ fontSize: 11, color: row.color, marginBottom: 4 }}>{row.range}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: row.color, marginBottom: 4 }}>{row.label}</div>
+              <div style={{ fontSize: 11, color: t.textMuted }}>{row.action}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function XAIReportView({ onBack }) {
+  const { t, transactions } = useApp();
+  const [selectedTx, setSelectedTx] = useState(transactions.find(x => x.status === "KILLED") || transactions[0]);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
+
+  const generate = () => {
+    setGenerating(true); setGenerated(false);
+    setTimeout(() => { setGenerating(false); setGenerated(true); }, 1800);
+  };
+
+  const riskTx = transactions.filter(x => x.score > 0.7).slice(0, 8);
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="📋" title="XAI Forensic Report" subtitle="Explainable AI decision audit trail generator" onBack={onBack} />
+      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }}>
+        <div className="glass-panel" style={{ padding: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.textMuted, letterSpacing: "0.06em", marginBottom: 12 }}>SELECT TRANSACTION</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+            {(riskTx.length > 0 ? riskTx : transactions.slice(0, 8)).map(tx => (
+              <div key={tx.id} onClick={() => { setSelectedTx(tx); setGenerated(false); }}
+                style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${selectedTx?.id === tx.id ? t.borderAccent : t.border}`,
+                  background: selectedTx?.id === tx.id ? t.accentSoft : t.surface, transition: "all 0.15s" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span className="mono" style={{ fontSize: 11, color: t.accent }}>{tx.id.slice(-10)}</span>
+                  <StatusPill status={tx.status} />
+                </div>
+                <div style={{ fontSize: 11, color: t.textMuted }}>{tx.merchant} · {fmt(tx.amount)}</div>
+                <ScoreBar score={tx.score} width={120} />
+              </div>
+            ))}
+          </div>
+          <button className="btn-base btn-accent" style={{ width: "100%", justifyContent: "center", marginTop: 12 }} onClick={generate}>
+            {generating ? "⏳ Generating…" : "⚡ Generate Report"}
+          </button>
+        </div>
+        <div className="glass-panel" style={{ padding: 20, fontFamily: "JetBrains Mono, monospace", fontSize: 12, lineHeight: 1.9, minHeight: 500 }}>
+          {!generating && !generated && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, gap: 12 }}>
+              <div style={{ fontSize: 40 }}>📋</div>
+              <div style={{ color: t.textMuted, textAlign: "center" }}>Select a transaction and click Generate Report</div>
+            </div>
+          )}
+          {generating && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {["Fetching transaction metadata…", "Running Isolation Forest analysis…", "Extracting behavioral signals…", "Computing SHAP feature weights…", "Generating audit trail hash…", "Compiling forensic report…"].map((line, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, animation: `fadeUp 0.2s ${i*0.25}s ease both`, opacity: 0 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.accent, animation: `pulse 1s ${i*0.25}s infinite` }} />
+                  <span style={{ color: t.textSub }}>{line}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {generated && selectedTx && (() => {
+            const tx = selectedTx;
+            const auditHash = Math.random().toString(36).slice(2, 18).toUpperCase();
+            const lines = [
+              { text: "════════════════════════════════════════════════════════", color: t.textMuted },
+              { text: "  SENTINEL-X  ·  EXPLAINABLE AI FORENSIC REPORT", color: t.accent },
+              { text: "  VERSION 2.4.1  ·  TEAM DEV SPARK  ·  HACKATHON 2025", color: t.textMuted },
+              { text: "════════════════════════════════════════════════════════", color: t.textMuted },
+              { text: "" },
+              { text: "  TRANSACTION METADATA", color: t.violet },
+              { text: `  ID          : ${tx.id}`, color: t.textSub },
+              { text: `  Timestamp   : ${tx.time}  UTC`, color: t.textSub },
+              { text: `  User        : ${tx.user}`, color: t.textSub },
+              { text: `  Merchant    : ${tx.merchant}`, color: t.textSub },
+              { text: `  Amount      : ${fmt(tx.amount)}`, color: tx.amount > 50000 ? t.amber : t.textSub },
+              { text: `  Method      : ${tx.method}`, color: t.textSub },
+              { text: `  Origin      : ${tx.city}`, color: ["London","Dubai","Singapore","Moscow","Lagos"].includes(tx.city) ? t.amber : t.textSub },
+              { text: "" },
+              { text: "  RISK ASSESSMENT", color: t.violet },
+              { text: `  Final Score : ${tx.score.toFixed(6)}`, color: tx.score > 0.8 ? t.danger : tx.score > 0.5 ? t.amber : t.green },
+              { text: `  Decision    : ${tx.status}`, color: tx.status === "KILLED" ? t.danger : tx.status === "PASSED" ? t.green : t.amber },
+              { text: "" },
+              { text: "  LAYER TIMING BREAKDOWN", color: t.violet },
+              { text: `  Layer 1 (Ingestion Gate)  : ${tx.l1}ms`, color: t.textSub },
+              { text: `  Layer 2 (ML Intelligence) : ${tx.l2}ms`, color: t.textSub },
+              { text: `  Layer 3 (Biometric)       : ${tx.l3}ms`, color: t.textSub },
+              { text: `  Total Decision Time       : ${tx.total}ms  [Budget: 300ms]`, color: tx.total < 300 ? t.green : t.danger },
+              { text: "" },
+              { text: "  ANOMALY SIGNALS DETECTED", color: t.violet },
+              ...(tx.flags.length > 0
+                ? tx.flags.map(f => ({ text: `  [TRIGGERED] → ${f}`, color: t.amber }))
+                : [{ text: "  [NONE] → No anomaly signals triggered", color: t.green }]),
+              { text: "" },
+              { text: "  ACTION TAKEN", color: t.violet },
+              { text: tx.status === "KILLED"
+                  ? "  ⛔  KILL-SWITCH ACTIVATED — Transaction frozen. Funds held."
+                  : tx.status === "STEP_UP"
+                  ? "  🔐  STEP-UP AUTH TRIGGERED — OTP / Face ID required."
+                  : tx.status === "FLAGGED"
+                  ? "  ⚠️   FLAGGED FOR REVIEW — User notified. Manual review queued."
+                  : "  ✓   TRANSACTION APPROVED — Cleared within decision budget.",
+                color: tx.status === "KILLED" ? t.danger : tx.status === "PASSED" ? t.green : t.amber },
+              { text: "" },
+              { text: "  AUDIT TRAIL", color: t.violet },
+              { text: `  Hash        : ${auditHash}`, color: t.textMuted },
+              { text: `  Chain       : TAMPER-PROOF  ·  IMMUTABLE LOG`, color: t.textMuted },
+              { text: "════════════════════════════════════════════════════════", color: t.textMuted },
+            ];
+            return (
+              <div>
+                {lines.map((line, i) => (
+                  <div key={i} style={{ color: line.color || t.textMuted, animation: `slideIn 0.15s ${i * 0.018}s ease both`, opacity: 0 }}>{line.text || "\u00A0"}</div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnomalyFlagsView({ onBack }) {
+  const { t, transactions } = useApp();
+  const flagCounts = ALL_FLAGS.map(f => ({
+    flag: f, count: transactions.filter(x => x.flags.includes(f)).length,
+    pct: transactions.length ? (transactions.filter(x => x.flags.includes(f)).length / transactions.length * 100) : 0,
+  })).sort((a,b) => b.count - a.count);
+
+  const totalFlagged = transactions.filter(x => x.flags.length > 0).length;
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="🚩" title="Active Anomaly Flags" subtitle="Real-time behavioral signal monitoring" onBack={onBack} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+        <MetricTile label="Flagged Transactions" value={<CountUp target={totalFlagged} />} color={t.amber} icon="🚩" />
+        <MetricTile label="Unique Flags Seen" value={<CountUp target={flagCounts.filter(f=>f.count>0).length} />} color={t.violet} icon="📡" />
+        <MetricTile label="Top Flag" value={flagCounts[0]?.flag.split("_").join(" ") || "—"} color={t.danger} icon="🔥" />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="glass-panel" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Flag Frequency Chart</div>
+          {flagCounts.map((item, i) => (
+            <div key={item.flag} style={{ marginBottom: 13, animation: `slideIn 0.2s ${i*0.04}s ease both` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span className="mono" style={{ fontSize: 11, color: item.count > 0 ? t.amber : t.textMuted }}>{item.flag}</span>
+                <span style={{ fontSize: 11, color: t.textMuted }}>{item.count}x · {item.pct.toFixed(1)}%</span>
+              </div>
+              <div style={{ height: 5, background: t.border, borderRadius: 3 }}>
+                <div style={{ height: "100%", width: `${Math.min(item.pct * 3, 100)}%`, borderRadius: 3, transition: "width 0.8s ease",
+                  background: item.pct > 10 ? `linear-gradient(90deg, ${t.amber}, ${t.danger})` : item.pct > 5 ? t.amber : t.green }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="glass-panel" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Recent Flag Events</div>
+          <div style={{ maxHeight: 380, overflowY: "auto" }}>
+            {transactions.filter(x => x.flags.length > 0).slice(0, 15).map((tx, i) => (
+              <div key={tx.id} style={{ padding: "10px 0", borderBottom: `1px solid ${t.border}44`, animation: `fadeUp 0.2s ${i*0.03}s ease both` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span className="mono" style={{ fontSize: 11, color: t.accent }}>{tx.id.slice(-12)}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <StatusPill status={tx.status} />
+                    <span className="mono" style={{ fontSize: 10, color: t.textMuted }}>{tx.time}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {tx.flags.map(f => (
+                    <span key={f} className="tag" style={{ color: t.amber, borderColor: t.amber + "44", fontSize: 9 }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatsDetailView({ onBack, type }) {
+  const { t, transactions } = useApp();
+
+  const configs = {
+    total: { icon: "📊", title: "Total Transactions", color: t.accent, data: transactions, label: "All Transactions" },
+    killed: { icon: "⛔", title: "Kill-Switch Events", color: t.danger, data: transactions.filter(x => x.status === "KILLED"), label: "Frozen Transactions" },
+    stepup: { icon: "🔐", title: "Step-Up Auth Events", color: t.amber, data: transactions.filter(x => x.status === "STEP_UP" || x.status === "FLAGGED"), label: "Challenged Transactions" },
+    passed: { icon: "✓", title: "Passed Transactions", color: t.green, data: transactions.filter(x => x.status === "PASSED"), label: "Cleared Transactions" },
+    avgrisk: { icon: "📈", title: "Risk Score Analytics", color: t.violet, data: transactions, label: "All Transactions" },
+    speed: { icon: "⚡", title: "Decision Speed Analytics", color: t.blue || t.accent, data: transactions, label: "All Transactions" },
+  };
+
+  const cfg = configs[type] || configs.total;
+  const avg = cfg.data.length ? (cfg.data.reduce((a,x)=>a+x.score,0)/cfg.data.length).toFixed(4) : "0.0000";
+  const avgSpeed = transactions.length ? (transactions.reduce((a,x)=>a+x.total,0)/transactions.length).toFixed(1) : "0";
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon={cfg.icon} title={cfg.title} subtitle={`${cfg.data.length} events · ${cfg.label}`} onBack={onBack} />
+      {type === "speed" ? (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+            <MetricTile label="Avg Total Latency" value={<>{<CountUp target={parseFloat(avgSpeed)} decimals={1} />}ms</>} color={t.green} />
+            <MetricTile label="Avg Layer 1" value={<>{<CountUp target={transactions.length ? transactions.reduce((a,x)=>a+x.l1,0)/transactions.length : 0} decimals={1} />}ms</>} color={t.accent} />
+            <MetricTile label="Avg Layer 2" value={<>{<CountUp target={transactions.length ? transactions.reduce((a,x)=>a+x.l2,0)/transactions.length : 0} decimals={1} />}ms</>} color={t.violet} />
+            <MetricTile label="Budget Used" value={<CountUp target={parseFloat(avgSpeed)/300*100} decimals={1} suffix="%" />} color={parseFloat(avgSpeed)<250 ? t.green : t.amber} />
+          </div>
+          <div className="glass-panel" style={{ padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Latency Distribution</div>
+            {transactions.slice(0,20).map((tx,i) => (
+              <div key={tx.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, animation:`fadeUp 0.2s ${i*0.03}s ease both` }}>
+                <span className="mono" style={{ fontSize:10, color:t.textMuted, minWidth:60 }}>{tx.id.slice(-8)}</span>
+                <div style={{ flex:1, height:6, background:t.border, borderRadius:3, position:"relative" }}>
+                  {[{w:tx.l1, color:t.accent},{w:tx.l2, color:t.violet},{w:tx.l3, color:t.amber}].reduce((acc,seg)=>{
+                    const left = acc.left;
+                    acc.els.push(<div key={left} style={{position:"absolute",left:`${(left/300)*100}%`,height:"100%",width:`${(seg.w/300)*100}%`,background:seg.color,borderRadius:2}} />);
+                    acc.left += seg.w; return acc;
+                  },{els:[],left:0}).els}
+                </div>
+                <span className="mono" style={{ fontSize:10, color:tx.total < 300 ? t.green : t.danger, minWidth:40 }}>{tx.total}ms</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : type === "avgrisk" ? (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+            <MetricTile label="Session Average" value={avg} color={parseFloat(avg) > 0.5 ? t.danger : t.green} />
+            <MetricTile label="Max Score" value={transactions.length ? Math.max(...transactions.map(x=>x.score)).toFixed(4) : "0"} color={t.danger} />
+            <MetricTile label="Min Score" value={transactions.length ? Math.min(...transactions.map(x=>x.score)).toFixed(4) : "0"} color={t.green} />
+            <MetricTile label="Critical (≥0.9)" value={<CountUp target={transactions.filter(x=>x.score>=0.9).length} />} color={t.danger} />
+          </div>
+          <div className="glass-panel" style={{ padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Score Bracket Distribution</div>
+            {[
+              { label: "Low Risk (0.0–0.49)", count: transactions.filter(x=>x.score<0.5).length, color: t.green },
+              { label: "Medium (0.5–0.69)", count: transactions.filter(x=>x.score>=0.5&&x.score<0.7).length, color: t.amber },
+              { label: "High (0.7–0.89)", count: transactions.filter(x=>x.score>=0.7&&x.score<0.9).length, color: t.amber },
+              { label: "Critical (0.9–1.0)", count: transactions.filter(x=>x.score>=0.9).length, color: t.danger },
+            ].map(b => {
+              const pct = transactions.length ? (b.count/transactions.length)*100 : 0;
+              return (
+                <div key={b.label} style={{ marginBottom:14 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                    <span style={{ fontSize:12, color:t.textSub }}>{b.label}</span>
+                    <span className="mono" style={{ fontSize:12, color:b.color }}>{b.count} · {pct.toFixed(1)}%</span>
+                  </div>
+                  <div style={{ height:6, background:t.border, borderRadius:3 }}>
+                    <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${b.color}88,${b.color})`, borderRadius:3, transition:"width 0.7s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+            <MetricTile label="Count" value={<CountUp target={cfg.data.length} />} color={cfg.color} />
+            <MetricTile label="Avg Risk Score" value={avg} color={cfg.color} />
+            <MetricTile label="Total Value" value={cfg.data.length ? fmt(cfg.data.reduce((a,x)=>a+x.amount,0)) : "₹0"} color={cfg.color} />
+          </div>
+          <div className="glass-panel" style={{ padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 16 }}>Recent Events</div>
+            <table>
+              <thead><tr><th>Time</th><th>Transaction ID</th><th>User</th><th>Merchant</th><th>Amount</th><th>Score</th><th>Status</th></tr></thead>
+              <tbody>
+                {cfg.data.slice(0,15).map((tx,i) => (
+                  <tr key={tx.id} className="data-row" style={{ animation:`fadeUp 0.2s ${i*0.03}s ease both` }}>
+                    <td className="mono" style={{ fontSize:11, color:t.textMuted }}>{tx.time}</td>
+                    <td className="mono" style={{ fontSize:11, color:t.accent }}>{tx.id.slice(-12)}</td>
+                    <td style={{ color:t.textSub }}>{tx.user}</td>
+                    <td style={{ color:t.text }}>{tx.merchant}</td>
+                    <td className="mono" style={{ color:t.textSub }}>{fmt(tx.amount)}</td>
+                    <td><ScoreBar score={tx.score} width={80} /></td>
+                    <td><StatusPill status={tx.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HoverPreview({ children, preview }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && preview && (
+        <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", zIndex: 200, pointerEvents: "none", animation: "fadeUp 0.15s ease", minWidth: 180, maxWidth: 240 }}>
+          <div style={{ background: "rgba(6,14,30,0.96)", border: `1px solid rgba(34,211,238,0.25)`, borderRadius: 10, padding: "10px 14px", backdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>{preview}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModuleCard({ icon, title, value, sub, color, onClick, preview, delay = 0, span = 1 }) {
+  const { t } = useApp();
+  return (
+    <HoverPreview preview={preview}>
+      <div className="module-card" onClick={onClick}
+        style={{ padding: "18px 20px", gridColumn: `span ${span}`, animation: `fadeUp 0.3s ${delay}s ease both`, opacity: 0, animationFillMode: "forwards" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: color + "18", border: `1px solid ${color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>{icon}</div>
+          <span style={{ fontSize: 10, color: t.textMuted, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 4 }}>VIEW <span style={{ fontSize: 12 }}>→</span></span>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>{title}</div>
+        {value !== undefined && <div style={{ fontSize: 28, fontWeight: 700, color, letterSpacing: "-0.02em", lineHeight: 1, marginBottom: 4 }}>{value}</div>}
+        {sub && <div style={{ fontSize: 12, color: t.textMuted }}>{sub}</div>}
+      </div>
+    </HoverPreview>
+  );
+}
+
+function Dashboard({ navigate }) {
+  const { t, transactions, simRunning, setSimRunning } = useApp();
+
+  const total = transactions.length;
+  const killed = transactions.filter(x => x.status === "KILLED").length;
+  const stepUp = transactions.filter(x => x.status === "STEP_UP" || x.status === "FLAGGED").length;
+  const passed = transactions.filter(x => x.status === "PASSED").length;
+  const avgScore = total ? (transactions.reduce((a,x)=>a+x.score,0)/total).toFixed(3) : "0.000";
+  const avgSpeed = total ? Math.round(transactions.reduce((a,x)=>a+x.total,0)/total) : 0;
+
+  const previewText = (label, items) => (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#22d3ee", marginBottom: 8 }}>{label}</div>
+      {items.map(([k,v]) => (
+        <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0" }}>
+          <span style={{ color:"#94a3b8" }}>{k}</span>
+          <span style={{ color:"#f1f5f9", fontFamily:"JetBrains Mono,monospace" }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: t.text, letterSpacing: "-0.02em" }}>Operations Overview</h1>
+          <div style={{ fontSize: 13, color: t.textMuted, marginTop: 3 }}>Sentinel-X Fraud Prevention Engine · {total} transactions this session</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: t.accentSoft, border: `1px solid ${t.borderAccent}` }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.accent, animation: "pulse 2s infinite" }} />
+            <span style={{ fontSize: 12, color: t.accent, fontWeight: 500 }}>{simRunning ? "LIVE" : "PAUSED"}</span>
+          </div>
+          <button className="btn-base btn-ghost" style={{ fontSize: 12 }} onClick={() => setSimRunning(r => !r)}>
+            {simRunning ? "⏸ Pause" : "▶ Resume"}
+          </button>
+        </div>
+      </div>
+
+      {killed > 0 && (
+        <div style={{ padding: "10px 16px", borderRadius: 10, background: t.danger + "0f", border: `1px solid ${t.danger}33`, display: "flex", alignItems: "center", gap: 10, animation: "fadeIn 0.3s ease" }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <span style={{ fontSize: 13, color: t.danger, fontWeight: 500 }}>Kill-Switch has fired {killed} time{killed > 1 ? "s" : ""} this session.</span>
+          <button className="btn-base btn-danger" style={{ marginLeft: "auto", padding: "4px 12px", fontSize: 11 }} onClick={() => navigate("killed")}>View Events →</button>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, alignItems: "start" }}>
+        <ModuleCard icon="📊" title="Total Transactions" value={<CountUp target={total} />} sub="this session" color={t.accent} delay={0.05} onClick={() => navigate("total")}
+          preview={previewText("Breakdown", [["Passed", passed], ["Step-Up", stepUp], ["Killed", killed]])} />
+        <ModuleCard icon="⛔" title="Kill-Switch Fired" value={<CountUp target={killed} />} sub="transactions frozen" color={t.danger} delay={0.08} onClick={() => navigate("killed")}
+          preview={previewText("Kill Events", [["Status", killed > 0 ? `${killed} events` : "None yet"]])} />
+        <ModuleCard icon="🔐" title="Step-Up Auth" value={<CountUp target={stepUp} />} sub="challenged" color={t.amber} delay={0.11} onClick={() => navigate("stepup")}
+          preview={previewText("Step-Up", [["Rate", total ? ((stepUp/total)*100).toFixed(1)+"%" : "0%"]])} />
+        <ModuleCard icon="✓" title="Passed" value={<CountUp target={passed} />} sub="cleared instantly" color={t.green} delay={0.14} onClick={() => navigate("passed")}
+          preview={previewText("Pass Rate", [["Rate", total ? ((passed/total)*100).toFixed(1)+"%" : "0%"]])} />
+
+        <ModuleCard icon="📈" title="Avg Risk Score" value={avgScore} sub={parseFloat(avgScore) > 0.5 ? "⚠ Elevated threat level" : "✓ Nominal range"} color={parseFloat(avgScore) > 0.5 ? t.danger : t.green} delay={0.17} span={2} onClick={() => navigate("avgrisk")}
+          preview={previewText("Score Breakdown", [["Critical ≥0.9", transactions.filter(x=>x.score>=0.9).length], ["High ≥0.7", transactions.filter(x=>x.score>=0.7).length]])} />
+        <ModuleCard icon="⚡" title="Decision Speed" value={`${avgSpeed}ms`} sub={avgSpeed < 300 ? "✓ Under 300ms budget" : "⚠ Over budget"} color={avgSpeed < 300 ? t.green : t.danger} delay={0.2} span={2} onClick={() => navigate("speed")}
+          preview={previewText("Latency Avg", [["Layer 1", `${total ? Math.round(transactions.reduce((a,x)=>a+x.l1,0)/total) : 0}ms`], ["Layer 2", `${total ? Math.round(transactions.reduce((a,x)=>a+x.l2,0)/total) : 0}ms`]])} />
+
+        <div className="module-card" onClick={() => navigate("stream")}
+          style={{ gridColumn: "span 4", padding: "18px 20px", animation: `fadeUp 0.3s 0.23s ease both`, opacity: 0, animationFillMode: "forwards", cursor: "pointer" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: t.accentSoft, border: `1px solid ${t.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>⚡</div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: t.textMuted }}>Live Transaction Stream</div>
+                <div style={{ fontSize: 12, color: t.textSub }}>Click to open full real-time feed · {total} events</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: simRunning ? t.green : t.textMuted, animation: simRunning ? "pulse 2s infinite" : "none" }} />
+              <span style={{ fontSize: 12, color: t.textMuted }}>{simRunning ? "Streaming" : "Paused"}</span>
+              <span style={{ fontSize: 11, color: t.accent }}>OPEN FEED →</span>
+            </div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ fontSize: 11 }}>
+              <thead><tr><th style={{ padding: "4px 12px" }}>Time</th><th>User</th><th>Merchant</th><th>Amount</th><th>Risk</th><th>Status</th></tr></thead>
+              <tbody>
+                {transactions.slice(0, 4).map(tx => (
+                  <tr key={tx.id} style={{ background: "transparent" }}>
+                    <td className="mono" style={{ fontSize: 10, color: t.textMuted }}>{tx.time}</td>
+                    <td style={{ color: t.textSub }}>{tx.user}</td>
+                    <td style={{ color: t.text }}>{tx.merchant}</td>
+                    <td className="mono" style={{ color: t.textSub }}>{fmt(tx.amount)}</td>
+                    <td><ScoreBar score={tx.score} width={70} /></td>
+                    <td><StatusPill status={tx.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <ModuleCard icon="🎯" title="Threat Analysis" value={transactions.filter(x=>x.score>0.8).length} sub="high-risk detections" color={t.violet} delay={0.26} onClick={() => navigate("threat")}
+          preview={previewText("Threats", [["Critical", transactions.filter(x=>x.score>=0.9).length], ["High", transactions.filter(x=>x.score>=0.7&&x.score<0.9).length]])} />
+        <ModuleCard icon="🔬" title="Behavioral Biometrics" value={transactions.filter(x=>x.flags.length>0).length} sub="anomalous sessions" color={t.amber} delay={0.29} onClick={() => navigate("biometrics")}
+          preview={previewText("Top Signals", [["VPN", transactions.filter(x=>x.flags.includes("VPN_DETECTED")).length], ["Device", transactions.filter(x=>x.flags.includes("DEVICE_MISMATCH")).length]])} />
+        <ModuleCard icon="🏗️" title="Three-Layer Pipeline" value={`${avgSpeed}ms`} sub="avg total latency" color={t.accent} delay={0.32} onClick={() => navigate("pipeline")}
+          preview={previewText("Architecture", [["Layer 1", "Java Engine"], ["Layer 2", "Isolation Forest"], ["Layer 3", "Biometrics"]])} />
+        <ModuleCard icon="🚩" title="Active Anomaly Flags" value={transactions.filter(x=>x.flags.length>0).reduce((a,x)=>a+x.flags.length,0)} sub="total flag triggers" color={t.danger} delay={0.35} onClick={() => navigate("flags")}
+          preview={previewText("Top Flags", ALL_FLAGS.slice(0,3).map(f => [f.split("_").join(" "), transactions.filter(x=>x.flags.includes(f)).length]))} />
+      </div>
+
+      <div className="module-card" onClick={() => navigate("xai")}
+        style={{ padding: "20px 24px", background: `linear-gradient(135deg, ${t.violet}0a, ${t.accentSoft})`, borderColor: t.borderAccent, animation: `fadeUp 0.3s 0.38s ease both`, opacity: 0, animationFillMode: "forwards", cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: t.violetSoft, border: `1px solid ${t.violet}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📋</div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>Generate XAI Forensic Report</div>
+              <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>Explainable AI audit trail · Every decision justified · Tamper-proof hash</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {transactions.filter(x=>x.status==="KILLED").length > 0 && (
+              <span style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, background: t.danger+"18", color: t.danger, border: `1px solid ${t.danger}33` }}>
+                {transactions.filter(x=>x.status==="KILLED").length} Kill Events
+              </span>
+            )}
+            <span className="btn-base btn-accent" style={{ pointerEvents: "none" }}>Open Report Generator →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+//  SUBMIT TRANSACTION ENGINE (ported from S2 HTML version)
+// ═══════════════════════════════════════════════════════
+const TX_CONFIG = {
+  APPROVE_THRESHOLD: 0.49, STEPUP_THRESHOLD: 0.79, FLAG_THRESHOLD: 0.89,
+  W_ML: 0.35, W_GEO: 0.30, W_DEVICE: 0.20, W_BIOMETRIC: 0.15,
+  VELOCITY_ALERT: 5, MAX_SPEED_KMH: 900, EARTH_RADIUS_KM: 6371,
+  MIN_HUMAN_TYPING: 0.5, MAX_HUMAN_TYPING: 10.0,
+};
+const userBaselinesStore = {};
+const userTxCountsStore = {};
+
+function txMlScore(tx) {
+  const t0 = performance.now();
+  let score = 0; const factors = [];
+  const baseline = userBaselinesStore[tx.userId] || { avgAmount: 500 };
+  const amountRatio = tx.amount / (baseline.avgAmount || 500);
+  if (amountRatio > 5) { score += 0.35; factors.push("extreme_amount"); }
+  else if (amountRatio > 3) { score += 0.25; factors.push("high_amount"); }
+  else if (amountRatio > 2) { score += 0.12; factors.push("elevated_amount"); }
+  const hour = new Date().getHours();
+  if (hour >= 0 && hour < 5) { score += 0.15; factors.push("unusual_hour"); }
+  if (tx.transactionFrequencyLast5Min > 8) { score += 0.2; factors.push("extreme_frequency"); }
+  else if (tx.transactionFrequencyLast5Min > 5) { score += 0.12; factors.push("high_frequency"); }
+  if (tx.ipAddress && (tx.ipAddress.startsWith("10.") || tx.ipAddress.includes("tor"))) {
+    score += 0.1; factors.push("suspicious_ip");
+  }
+  score += (Math.random() * 0.08 - 0.04);
+  score = Math.max(0, Math.min(1, score));
+  const inferenceMs = performance.now() - t0;
+  const explanation = factors.length > 0
+    ? `ML detected ${factors.length} anomaly signal(s): ${factors.join(", ")}. Amount ratio: ${amountRatio.toFixed(1)}x baseline.`
+    : "No significant anomalies detected by Isolation Forest model.";
+  return { riskScore: score, anomalyFactors: factors, explanation, inferenceMs };
+}
+
+function parseGeoCoord(s) {
+  if (!s) return null;
+  const p = s.split(",").map(Number);
+  return (p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) ? p : null;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return TX_CONFIG.EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function txComputeGeoVelocity(currentGeo, baseline) {
+  const lastGeo = baseline.lastGeoLocation || "";
+  const lastTime = baseline.lastTransactionTime || 0;
+  if (!lastGeo || !lastTime) return 0.1;
+  const curr = parseGeoCoord(currentGeo), prev = parseGeoCoord(lastGeo);
+  if (!curr || !prev) return 0.2;
+  const dist = haversineKm(prev[0], prev[1], curr[0], curr[1]);
+  const hours = (Date.now() - lastTime) / 3600000;
+  if (hours < 0.001) return dist > 1 ? 0.95 : 0.0;
+  const speed = dist / hours;
+  if (speed > TX_CONFIG.MAX_SPEED_KMH) return Math.min(1, 0.7 + (speed - TX_CONFIG.MAX_SPEED_KMH) / 5000);
+  if (speed > 500) return 0.4;
+  if (speed > 200) return 0.2;
+  return 0.0;
+}
+
+function txComputeDeviceScore(deviceId, baseline) {
+  const known = baseline.knownDevices || [];
+  if (!known.length) return 0.3;
+  return known.includes(deviceId) ? 0.0 : 0.65;
+}
+
+function txComputeBiometricScore(typingSpeed, scrollPattern) {
+  let typingRisk = 0;
+  if (typingSpeed === 0) typingRisk = 0.4;
+  else if (typingSpeed < TX_CONFIG.MIN_HUMAN_TYPING) typingRisk = 0.3;
+  else if (typingSpeed > TX_CONFIG.MAX_HUMAN_TYPING) typingRisk = 0.8;
+  let scrollRisk = 0;
+  if (scrollPattern < 0.1) scrollRisk = 0.7;
+  else if (scrollPattern < 0.3) scrollRisk = 0.4;
+  return typingRisk * 0.6 + scrollRisk * 0.4;
+}
+
+function txDecide(tx) {
+  const t0 = performance.now();
+  const baseline = userBaselinesStore[tx.userId] || { avgAmount: 500, knownDevices: [], lastGeoLocation: "", lastTransactionTime: 0 };
+  const ml = txMlScore(tx);
+  const geoScore = txComputeGeoVelocity(tx.geoLocation, baseline);
+  const deviceScore = txComputeDeviceScore(tx.deviceId, baseline);
+  const biometricScore = txComputeBiometricScore(tx.typingSpeed, tx.scrollPattern);
+  const txCount = (userTxCountsStore[tx.userId] || 0) + tx.transactionFrequencyLast5Min;
+  let composite = ml.riskScore * TX_CONFIG.W_ML + geoScore * TX_CONFIG.W_GEO + deviceScore * TX_CONFIG.W_DEVICE + biometricScore * TX_CONFIG.W_BIOMETRIC;
+  if (txCount > TX_CONFIG.VELOCITY_ALERT) composite += Math.min(0.3, (txCount - TX_CONFIG.VELOCITY_ALERT) * 0.05);
+  composite = Math.max(0, Math.min(1, composite));
+  let decision = "PASSED";
+  if (composite > TX_CONFIG.FLAG_THRESHOLD) decision = "KILLED";
+  else if (composite > TX_CONFIG.STEPUP_THRESHOLD) decision = "FLAGGED";
+  else if (composite > TX_CONFIG.APPROVE_THRESHOLD) decision = "STEP_UP";
+  // Update baseline
+  userBaselinesStore[tx.userId] = {
+    avgAmount: baseline.avgAmount * 0.9 + tx.amount * 0.1,
+    knownDevices: [...new Set([...(baseline.knownDevices || []), tx.deviceId])].slice(-5),
+    lastGeoLocation: tx.geoLocation,
+    lastTransactionTime: Date.now(),
+  };
+  userTxCountsStore[tx.userId] = (userTxCountsStore[tx.userId] || 0) + 1;
+  const processingTimeMs = performance.now() - t0;
+  return {
+    txId: `TX-${Date.now()}-${Math.floor(Math.random()*9000+1000)}`,
+    decision, compositeScore: composite,
+    breakdown: { ml: ml.riskScore, geo: geoScore, device: deviceScore, biometric: biometricScore },
+    anomalyFactors: ml.anomalyFactors, explanation: ml.explanation, processingTimeMs,
+  };
+}
+
+const TX_PRESETS = {
+  safe:      { userId:"user_1001", amount:85,    merchant:"amazon_prime",    device:"dev_abc123",  ip:"192.168.1.100", geo:"12.97,77.59",   typing:5.2,  scroll:0.82, freq:1 },
+  suspicious:{ userId:"user_1001", amount:2800,  merchant:"merchant_unknown",device:"dev_xyz999",  ip:"10.0.0.55",    geo:"40.71,-74.01",  typing:1.2,  scroll:0.35, freq:4 },
+  fraud:     { userId:"user_1001", amount:15000, merchant:"crypto_exchange", device:"dev_STOLEN",  ip:"10.99.99.1",   geo:"-33.87,151.21", typing:0,    scroll:0.05, freq:12 },
+  bot:       { userId:"user_bot",  amount:499,   merchant:"test_merchant",   device:"dev_headless",ip:"172.16.0.1",   geo:"0.0,0.0",       typing:45,   scroll:0.02, freq:3 },
+  velocity:  { userId:"user_1001", amount:25,    merchant:"gas_station",     device:"dev_abc123",  ip:"192.168.1.100",geo:"12.97,77.59",   typing:4.5,  scroll:0.7,  freq:15 },
+};
+
+function SubmitTransactionView({ onBack }) {
+  const { t } = useApp();
+  const [form, setForm] = useState({ userId:"user_1001", amount:"150.00", merchant:"merchant_42", device:"dev_abc123", ip:"192.168.1.100", geo:"12.97,77.59", typing:"5.2", scroll:"0.75", freq:"1" });
+  const [result, setResult] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [autoSim, setAutoSim] = useState(false);
+  const autoRef = useRef(null);
+  const [activePreset, setActivePreset] = useState(null);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const loadPreset = (type) => {
+    const p = TX_PRESETS[type];
+    setForm({ userId:p.userId, amount:String(p.amount), merchant:p.merchant, device:p.device, ip:p.ip, geo:p.geo, typing:String(p.typing), scroll:String(p.scroll), freq:String(p.freq) });
+    setActivePreset(type);
+  };
+
+  const clearForm = () => { setForm({ userId:"", amount:"", merchant:"", device:"", ip:"", geo:"", typing:"", scroll:"", freq:"" }); setActivePreset(null); setResult(null); };
+
+  const submitTx = (overrideForm) => {
+    const f = overrideForm || form;
+    setAnalyzing(true);
+    const tx = {
+      userId: f.userId, amount: parseFloat(f.amount) || 0, merchantId: f.merchant,
+      deviceId: f.device, ipAddress: f.ip, geoLocation: f.geo,
+      typingSpeed: parseFloat(f.typing) || 0, scrollPattern: parseFloat(f.scroll) || 0,
+      transactionFrequencyLast5Min: parseInt(f.freq) || 0,
+    };
+    setTimeout(() => { setResult(txDecide(tx)); setAnalyzing(false); }, 320);
+  };
+
+  useEffect(() => {
+    if (autoSim) {
+      autoRef.current = setInterval(() => {
+        const types = ["safe","suspicious","fraud","bot","velocity"];
+        const r = Math.random();
+        const type = r<0.5?"safe":r<0.72?"suspicious":r<0.85?"fraud":r<0.93?"bot":"velocity";
+        const p = TX_PRESETS[type];
+        const autoForm = { userId:`user_${1000+Math.floor(Math.random()*50)}`, amount:String((p.amount*(0.5+Math.random())).toFixed(2)), merchant:p.merchant, device:p.device, ip:p.ip, geo:p.geo, typing:String(p.typing), scroll:String(p.scroll), freq:String(p.freq) };
+        setForm(autoForm); setActivePreset(type); submitTx(autoForm);
+      }, 1200);
+    } else clearInterval(autoRef.current);
+    return () => clearInterval(autoRef.current);
+  }, [autoSim]);
+
+  const decisionMap = { PASSED: { color: t.green, label: "APPROVED", icon: "✓" }, STEP_UP: { color: t.amber, label: "STEP-UP", icon: "🔐" }, FLAGGED: { color: "#fb923c", label: "FLAGGED", icon: "⚠" }, KILLED: { color: t.danger, label: "FROZEN", icon: "⛔" } };
+
+  const FieldRow = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>;
+  const Field = ({ label, id, type="text", step, min, max }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted }}>{label}</label>
+      <input type={type} step={step} min={min} max={max} value={form[id]} onChange={e => { set(id, e.target.value); setActivePreset(null); }} />
+    </div>
+  );
+
+  return (
+    <div className="view-enter" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <SectionHeader icon="⚡" title="Submit Transaction" subtitle="Manual transaction analysis using the full Sentinel-X fraud detection engine" onBack={onBack} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+        {/* LEFT: INPUT FORM */}
+        <div className="glass-panel" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Transaction Details</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: t.textMuted }}>Auto-Sim</span>
+              <div onClick={() => setAutoSim(a => !a)} style={{ width: 36, height: 20, borderRadius: 10, background: autoSim ? t.accent : t.border, border: `1px solid ${autoSim ? t.borderAccent : t.border}`, cursor: "pointer", position: "relative", transition: "all 0.25s", flexShrink: 0 }}>
+                <div style={{ position: "absolute", top: 2, left: autoSim ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.25s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+              </div>
+            </div>
+          </div>
+          {/* Quick Presets */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: t.textMuted, marginBottom: 7 }}>Quick Presets</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[["safe","✅ Safe",t.green],["suspicious","⚠️ Suspicious",t.amber],["fraud","🚨 Fraud",t.danger],["bot","🤖 Bot",t.violet],["velocity","⚡ Velocity",t.accent]].map(([k,lbl,col]) => (
+                <button key={k} className="btn-base" onClick={() => loadPreset(k)} style={{ padding: "4px 10px", fontSize: 11, background: activePreset===k ? col+"22" : t.surface, color: activePreset===k ? col : t.textSub, borderColor: activePreset===k ? col+"66" : t.border, transition: "all 0.18s" }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+          {/* Form Fields */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <FieldRow>
+              <Field label="User ID" id="userId" />
+              <Field label="Amount (₹)" id="amount" type="number" />
+            </FieldRow>
+            <FieldRow>
+              <Field label="Merchant" id="merchant" />
+              <Field label="Device ID" id="device" />
+            </FieldRow>
+            <FieldRow>
+              <Field label="IP Address" id="ip" />
+              <Field label="Geo (lat,lon)" id="geo" />
+            </FieldRow>
+            <FieldRow>
+              <Field label="Typing Speed" id="typing" type="number" step="0.1" />
+              <Field label="Scroll Pattern" id="scroll" type="number" step="0.01" min="0" max="1" />
+            </FieldRow>
+            <Field label="Txn Frequency (5 min)" id="freq" type="number" min="0" />
+          </div>
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <button className="btn-base btn-accent" style={{ flex: 1 }} onClick={() => submitTx()} disabled={analyzing}>
+              {analyzing ? <><span style={{ display: "inline-block", width: 12, height: 12, border: `2px solid ${t.accent}44`, borderTopColor: t.accent, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} /> Analyzing…</> : "🔍 Analyze Transaction"}
+            </button>
+            <button className="btn-base btn-ghost" onClick={clearForm}>Clear</button>
+          </div>
+        </div>
+
+        {/* RIGHT: RESULT PANEL */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {!result && !analyzing && (
+            <div className="glass-panel" style={{ padding: 40, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 200 }}>
+              <span style={{ fontSize: 36, opacity: 0.2 }}>🛡️</span>
+              <span style={{ fontSize: 13, color: t.textMuted, textAlign: "center" }}>Fill in the transaction details and click<br/><strong style={{ color: t.textSub }}>Analyze Transaction</strong> to run the full engine</span>
+            </div>
+          )}
+          {analyzing && (
+            <div className="glass-panel" style={{ padding: 40, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 36, height: 36, border: `3px solid ${t.border}`, borderTopColor: t.accent, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+              <span style={{ fontSize: 13, color: t.textSub }}>Running 3-layer fraud detection…</span>
+            </div>
+          )}
+          {result && !analyzing && (() => {
+            const d = decisionMap[result.decision] || decisionMap.PASSED;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "scaleIn 0.28s ease both" }}>
+                {/* Decision Banner */}
+                <div className="glass-panel" style={{ padding: "16px 20px", borderColor: d.color + "44", background: d.color + "0a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: d.color + "18", border: `1px solid ${d.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{d.icon}</div>
+                    <div>
+                      <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2 }}>DECISION</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: d.color, letterSpacing: "0.04em" }}>{d.label}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2 }}>COMPOSITE RISK SCORE</div>
+                    <div className="mono" style={{ fontSize: 26, fontWeight: 700, color: d.color }}>{result.compositeScore.toFixed(4)}</div>
+                    <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>Latency: {result.processingTimeMs.toFixed(2)}ms</div>
+                  </div>
+                </div>
+                {/* Score Breakdown */}
+                <div className="glass-panel" style={{ padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 12 }}>Score Breakdown</div>
+                  {[["ML Isolation Forest", result.breakdown.ml, t.accent], ["Geo-Velocity", result.breakdown.geo, t.violet], ["Device Fingerprint", result.breakdown.device, t.amber], ["Behavioral Biometrics", result.breakdown.biometric, t.green]].map(([lbl, val, col]) => (
+                    <div key={lbl} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${t.border}` }}>
+                      <span style={{ fontSize: 12, color: t.textSub }}>{lbl}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 80, height: 5, background: t.border, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${val*100}%`, background: col, borderRadius: 3, transition: "width 0.5s ease" }} />
+                        </div>
+                        <span className="mono" style={{ fontSize: 11, color: col, minWidth: 40, textAlign: "right" }}>{val.toFixed(3)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Explanation & Flags */}
+                <div className="glass-panel" style={{ padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>ML Explanation</div>
+                  <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.7, background: t.surface, borderRadius: 8, padding: "10px 12px", border: `1px solid ${t.border}` }}>{result.explanation}</div>
+                  {result.anomalyFactors.length > 0 && (
+                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {result.anomalyFactors.map(f => <span key={f} className="tag" style={{ color: t.amber, borderColor: t.amber + "44" }}>{f}</span>)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, color: t.textMuted, textAlign: "right" }} className="mono">TX ID: {result.txId}</div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NAV_ITEMS = [
+  { id: "dashboard", icon: "⊞", label: "Dashboard" },
+  { id: "stream", icon: "⚡", label: "Live Stream" },
+  { id: "submit", icon: "🔍", label: "Submit Tx" },
+  { id: "threat", icon: "🎯", label: "Threat Analysis" },
+  { id: "biometrics", icon: "🔬", label: "Biometrics" },
+  { id: "pipeline", icon: "🏗️", label: "Pipeline" },
+  { id: "flags", icon: "🚩", label: "Anomaly Flags" },
+  { id: "xai", icon: "📋", label: "XAI Reports" },
+];
+
+function Sidebar({ view, navigate, collapsed, setCollapsed }) {
+  const { t, transactions } = useApp();
+  const killed = transactions.filter(x => x.status === "KILLED").length;
+
+  return (
+    <div style={{ width: collapsed ? 56 : 216, flexShrink: 0, display: "flex", flexDirection: "column", background: t.sidebarBg, borderRight: `1px solid ${t.border}`, transition: "width 0.25s cubic-bezier(0.22,1,0.36,1)", overflow: "hidden", backdropFilter: "blur(20px)", position: "relative", zIndex: 10 }}>
+      <div style={{ padding: collapsed ? "18px 10px" : "18px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: t.accentSoft, border: `1px solid ${t.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: t.accent, flexShrink: 0 }}>SX</div>
+        {!collapsed && (
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: t.accent === "#2563eb" ? t.text : t.accent, letterSpacing: "0.02em", whiteSpace: "nowrap" }}>Sentinel-X</div>
+            <div style={{ fontSize: 10, color: t.textMuted, whiteSpace: "nowrap" }}>Fraud Prevention Engine</div>
+          </div>
+        )}
+      </div>
+      <div style={{ flex: 1, padding: "10px 8px", overflowY: "auto", overflowX: "hidden" }}>
+        {!collapsed && <div style={{ fontSize: 10, fontWeight: 600, color: t.textMuted, letterSpacing: "0.08em", padding: "4px 8px 8px", textTransform: "uppercase" }}>Navigation</div>}
+        {NAV_ITEMS.map(item => (
+          <div key={item.id} className={`nav-item ${view === item.id ? "active" : ""}`}
+            onClick={() => navigate(item.id)}
+            style={{ justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? "9px" : "9px 12px", marginBottom: 2 }}
+            title={collapsed ? item.label : undefined}>
+            <span style={{ fontSize: 17, flexShrink: 0 }}>{item.icon}</span>
+            {!collapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>}
+            {!collapsed && item.id === "xai" && killed > 0 && (
+              <span style={{ marginLeft: "auto", minWidth: 18, height: 18, borderRadius: 9, background: t.danger, color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{killed}</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: "10px 8px", borderTop: `1px solid ${t.border}` }}>
+        <div className="nav-item" onClick={() => setCollapsed(c => !c)} style={{ justifyContent: collapsed ? "center" : "flex-start", padding: collapsed ? "9px" : "9px 12px" }}>
+          <span style={{ fontSize: 16 }}>{collapsed ? "→" : "←"}</span>
+          {!collapsed && <span>Collapse</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Header({ view, navigate, theme, setTheme }) {
+  const { t, transactions, simRunning } = useApp();
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    const tick = () => setTime(new Date().toLocaleTimeString("en-US", { hour12: false }));
+    tick(); const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const killed = transactions.filter(x => x.status === "KILLED").length;
+  const labels = { dashboard: "Overview", stream: "Live Stream", threat: "Threat Analysis", biometrics: "Behavioral Biometrics", pipeline: "Three-Layer Pipeline", flags: "Anomaly Flags", xai: "XAI Reports", total: "Transactions", killed: "Kill Events", stepup: "Step-Up Events", passed: "Passed Events", avgrisk: "Risk Analytics", speed: "Speed Analytics" };
+
+  return (
+    <div style={{ height: 56, flexShrink: 0, display: "flex", alignItems: "center", padding: "0 20px", gap: 16, background: t.headerBg, borderBottom: `1px solid ${t.border}`, backdropFilter: "blur(20px)", zIndex: 9 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+        {view !== "dashboard" && (
+          <>
+            <button className="btn-base btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => navigate("dashboard")}>← Dashboard</button>
+            <span style={{ color: t.textMuted }}>·</span>
+          </>
+        )}
+        <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{labels[view] || "Dashboard"}</span>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {[{ label: "SYSTEM", val: "ONLINE", color: t.green }, { label: "ML", val: "ACTIVE", color: t.accent }, { label: "REDIS", val: "HOT", color: t.violet }].map(s => (
+          <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: s.color, animation: "pulse 2s infinite" }} />
+            <span style={{ color: t.textMuted }}>{s.label}:</span>
+            <span style={{ color: s.color, fontWeight: 600 }}>{s.val}</span>
+          </div>
+        ))}
+        {killed > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 6, background: t.danger + "18", border: `1px solid ${t.danger}33`, cursor: "pointer" }} onClick={() => navigate("killed")}>
+            <span style={{ fontSize: 12 }}>⛔</span>
+            <span style={{ fontSize: 11, color: t.danger, fontWeight: 600 }}>{killed} killed</span>
+          </div>
+        )}
+        <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: "0.06em" }}>
+          {time}<span style={{ animation: "blink 1s step-end infinite" }}>_</span>
+        </span>
+        <select value={theme} onChange={e => setTheme(e.target.value)} style={{ fontSize: 11, padding: "4px 8px", minWidth: 100 }}>
+          <option value="cyber">🌐 Cyber</option>
+          <option value="graphite">⬛ Graphite</option>
+          <option value="soc">☀️ SOC Light</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+export default function SentinelXApp() {
+  const [theme, setTheme] = useState("cyber");
+  const t = THEMES[theme];
+
+  const [transactions, setTransactions] = useState(() => Array.from({ length: 16 }, () => genTx()));
+  const [simRunning, setSimRunning] = useState(true);
+  const [view, setView] = useState("dashboard");
+  const [collapsed, setCollapsed] = useState(false);
+  const intervalRef = useRef(null);
+
+  const navigate = useCallback((v) => setView(v), []);
+
+  const addTx = useCallback(() => {
+    setTransactions(prev => [genTx(), ...prev.slice(0, 79)]);
+  }, []);
+
+  useEffect(() => {
+    if (simRunning) { intervalRef.current = setInterval(addTx, 1100); }
+    else clearInterval(intervalRef.current);
+    return () => clearInterval(intervalRef.current);
+  }, [simRunning, addTx]);
+
+  const ctx = useMemo(() => ({ t, transactions, simRunning, setSimRunning }), [t, transactions, simRunning]);
+
+  const renderView = () => {
+    const statViews = ["total","killed","stepup","passed","avgrisk","speed"];
+    if (statViews.includes(view)) return <StatsDetailView onBack={() => navigate("dashboard")} type={view} />;
+    switch (view) {
+      case "stream":     return <LiveStreamView onBack={() => navigate("dashboard")} />;
+      case "submit":     return <SubmitTransactionView onBack={() => navigate("dashboard")} />;
+      case "threat":     return <ThreatAnalysisView onBack={() => navigate("dashboard")} />;
+      case "biometrics": return <BiometricsView onBack={() => navigate("dashboard")} />;
+      case "pipeline":   return <PipelineView onBack={() => navigate("dashboard")} />;
+      case "xai":        return <XAIReportView onBack={() => navigate("dashboard")} />;
+      case "flags":      return <AnomalyFlagsView onBack={() => navigate("dashboard")} />;
+      default:           return <Dashboard navigate={navigate} />;
+    }
+  };
+
+  return (
+    <AppContext.Provider value={ctx}>
+      <GlobalStyles t={t} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: `radial-gradient(ellipse 80% 50% at 20% 0%, ${t.accentGlow} 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 100%, ${t.violetSoft} 0%, transparent 60%)` }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: `linear-gradient(${t.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${t.gridLine} 1px, transparent 1px)`,
+        backgroundSize: "40px 40px",
+        maskImage: "radial-gradient(ellipse 100% 100% at 50% 0%, black 40%, transparent 100%)" }} />
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100vh" }}>
+        <Header view={view} navigate={navigate} theme={theme} setTheme={setTheme} />
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          <Sidebar view={view} navigate={navigate} collapsed={collapsed} setCollapsed={setCollapsed} />
+          <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+            {renderView()}
+          </main>
+        </div>
+      </div>
+    </AppContext.Provider>
+  );
+}
